@@ -12,6 +12,16 @@ The same image, promoted — staging on the left, production on the right:
 
 <img src="docs/images/staging.png" alt="The app running in staging: Environment STAGING in the footer" width="45%"> <img src="docs/images/prod.png" alt="The same app running in production: Environment PRODUCTION in the footer" width="45%">
 
+## Add-on: "Ask about my experience" with Bedrock
+
+A question box on the page, answered by Amazon Bedrock (Nova Lite) from
+`prompts/resume_facts.md`. Since every request costs money on a public
+endpoint, it shipped with a per-IP rate limit, a hard daily token cap
+(~$2/day) with a 25% alarm, and an off-topic guard.
+Details and what testing caught: [docs/ask-feature.md](docs/ask-feature.md).
+
+<img src="docs/images/bedrock_answer.png" alt="Question about Liliya answered from the facts file: She speaks English, Ukrainian, and Russian" width="48%"> <img src="docs/images/bedrock_off_topic.png" alt="Off-topic question about boiling an egg gets the fixed reply: I can only answer questions about Liliya's experience, skills, and projects" width="48%">
+
 *(Not kept running continuously, to control AWS cost — the screenshots above are it live in both environments.)*
 
 ## Architecture
@@ -63,16 +73,6 @@ Three IAM identities, one per actor:
   can't even list its own IAM policies or describe ECR repositories.
 - **Nothing sensitive in the repo or on the page**: secrets live in GitHub
   Secrets; the page has no phone number and no trackers.
-
-## Add-on: "Ask about my experience" with Bedrock
-
-A question box on the page, answered by Amazon Bedrock (Nova Lite) from
-`prompts/resume_facts.md`. Since every request costs money on a public
-endpoint, it shipped with a per-IP rate limit, a hard daily token cap
-(~$2/day) with a 25% alarm, and an off-topic guard.
-Details and what testing caught: [docs/ask-feature.md](docs/ask-feature.md).
-
-<img src="docs/images/bedrock_answer.png" alt="Question about Liliya answered from the facts file: She speaks English, Ukrainian, and Russian" width="48%"> <img src="docs/images/bedrock_off_topic.png" alt="Off-topic question about boiling an egg gets the fixed reply: I can only answer questions about Liliya's experience, skills, and projects" width="48%">
 
 ## What failed while building this, and how it was diagnosed
 
