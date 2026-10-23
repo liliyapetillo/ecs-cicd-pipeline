@@ -1,1 +1,41 @@
-[]
+[
+  {
+    "date": "2026-10-23",
+    "sha": "c3fa7a6",
+    "run_url": "https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843",
+    "total": 135,
+    "graded": 135,
+    "passed": 134,
+    "failed": 1,
+    "errors": 0,
+    "categories": {
+      "positive": {
+        "passed": 32,
+        "total": 33,
+        "errors": 0
+      },
+      "negative": {
+        "passed": 33,
+        "total": 33,
+        "errors": 0
+      },
+      "edge": {
+        "passed": 30,
+        "total": 30,
+        "errors": 0
+      },
+      "redteam": {
+        "passed": 39,
+        "total": 39,
+        "errors": 0
+      }
+    },
+    "failing": [
+      {
+        "category": "positive",
+        "question": "How does she use AI in her QA work?",
+        "times": 1
+      }
+    ]
+  }
+]

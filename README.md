@@ -144,7 +144,7 @@ What a real production service would still need:
 ## AI
 
 <!-- evals-headline:start -->
-No eval run recorded yet.
+🟢 **LLM evals: 99% passing** (134/135) on commit `c3fa7a6`, 2026-10-23 · [report](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843)
 <!-- evals-headline:end -->
 
 <details>
@@ -275,7 +275,41 @@ runs locally only, from `promptfoo-groundedness.yaml`. It stays out of CI until
 the judge is calibrated: its first run failed 2 correct answers out of 135.
 
 <!-- evals:start -->
-No run recorded yet. The first pipeline run after this change fills this in.
+> [!NOTE]
+> **Auto-updated by CI on every deploy.** Latest run: commit `c3fa7a6` on 2026-10-23, against staging · [full report and logs](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843)
+
+**99% passing** (134/135 graded).
+
+| Category | Status | Passed | Rate |
+|---|:---:|---|---|
+| positive | 🟢 | 32/33 | 97% |
+| negative | 🟢 | 33/33 | 100% |
+| edge | 🟢 | 30/30 | 100% |
+| redteam | 🟢 | 39/39 | 100% |
+
+<details>
+<summary>1 question failed at least once in the latest run</summary>
+
+- (positive, 1x) How does she use AI in her QA work?
+
+</details>
+
+```mermaid
+xychart-beta
+    title "Pass rate, last 1 graded run"
+    x-axis ["10-23 c3fa7a6"]
+    y-axis "Pass rate (%)" 0 --> 100
+    line [99.3]
+```
+
+<details>
+<summary>Run history</summary>
+
+| Date | Commit | Passed | Rate | Not graded |
+|---|---|---|---|---|
+| 2026-10-23 | [`c3fa7a6`](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843) | 134/135 | 99% | 0 |
+
+</details>
 <!-- evals:end -->
 
 Raw per-run data: [`evals/results/history.json`](evals/results/history.json).
