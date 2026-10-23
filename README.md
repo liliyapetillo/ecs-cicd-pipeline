@@ -8,23 +8,21 @@ path a container takes from my laptop to production: tests that block bad
 code, a registry, staging, and a human approval before anything goes live.
 The same shape as a real team's process, scaled down to one person.
 
+It also hosts an LLM feature, "Ask about my experience", a Bedrock-powered Q&A
+with cost guardrails. A golden-set and red-team eval suite runs against staging
+on every deploy and blocks the production approval if the pass rate drops:
+see the [AI section](#ai).
+
 The same image, promoted — staging on the left, production on the right:
 
 <img src="docs/images/staging.png" alt="The app running in staging: Environment STAGING in the footer" width="45%"> <img src="docs/images/prod.png" alt="The same app running in production: Environment PRODUCTION in the footer" width="45%">
 
-## Add-on: "Ask about my experience" with Bedrock
+Jump to what you care about: [DevOps](#devops) · [AI](#ai) · [Run it yourself](#run-it-yourself). Each section below expands on click.
 
-A question box on the page, answered by Amazon Bedrock (Nova Lite) from
-`prompts/resume_facts.md`. Since every request costs money on a public
-endpoint, it shipped with a per-IP rate limit, a hard daily token cap
-(~$2/day) with a 25% alarm, and an off-topic guard.
-Details and what testing caught: [docs/ask-feature.md](docs/ask-feature.md).
+## DevOps
 
-<img src="docs/images/bedrock_answer.png" alt="Question about Liliya answered from the facts file: She speaks English, Ukrainian, and Russian" width="48%"> <img src="docs/images/bedrock_off_topic.png" alt="Off-topic question about boiling an egg gets the fixed reply: I can only answer questions about Liliya's experience, skills, and projects" width="48%">
-
-*(Not kept running continuously, to control AWS cost — the screenshots above are it live in both environments.)*
-
-## Architecture
+<details>
+<summary><b>Architecture</b> — pipeline stages, approval gate, runtime, monitoring, IAM</summary>
 
 ![CI/CD pipeline: push to main triggers GitHub Actions (test, build-push, deploy-staging, manual approval, deploy-prod), which assumes a single OIDC IAM role to push a SHA-tagged image to ECR and deploy it to the ECS staging and prod services](docs/images/project1_cicd_pipeline.png)
 
@@ -61,7 +59,10 @@ Three IAM identities, one per actor:
 - **`myapp-task-role`**, used by the app: `GetItem`/`UpdateItem` on one
   table and `bedrock:InvokeModel` on one model, nothing else.
 
-## Design decisions
+</details>
+
+<details>
+<summary><b>Design decisions</b> — why Fargate, DynamoDB, OIDC, least privilege</summary>
 
 - **Fargate over EC2 or Kubernetes**: real task definitions and rolling
   deploys, without managing servers or a control plane.
@@ -74,7 +75,10 @@ Three IAM identities, one per actor:
 - **Nothing sensitive in the repo or on the page**: secrets live in GitHub
   Secrets; the page has no phone number and no trackers.
 
-## What failed while building this, and how it was diagnosed
+</details>
+
+<details>
+<summary><b>What failed, and how it was diagnosed</b> — four real failures with root causes</summary>
 
 Most of the real learning happened here, not in the parts that worked on
 the first try.
@@ -114,7 +118,10 @@ the first try.
    that list it *directly* in `needs:`, not transitively through a chain, so
    that reference could never have resolved to anything.
 
-## What's next
+</details>
+
+<details>
+<summary><b>What's next</b> — what a real production service would still need</summary>
 
 What a real production service would still need:
 
@@ -128,7 +135,152 @@ What a real production service would still need:
   image, image scanning, Actions pinned to commit SHAs, Dependabot.
 - **Terraform** for the ECS and IAM setup I did by hand in the console.
 
-## Setup
+</details>
+
+## AI
+
+<!-- evals-headline:start -->
+No eval run recorded yet.
+<!-- evals-headline:end -->
+
+<details>
+<summary><b>Ask about my experience</b> — Bedrock-powered Q&A, cost guardrails, design choices</summary>
+
+A question box on the page: visitors ask about my background and get a short
+answer from Amazon Bedrock (Nova Lite), grounded only in
+`prompts/resume_facts.md`. No new compute and no new role, just one more
+permission on `myapp-task-role`, scoped to that one model.
+
+<img src="docs/images/bedrock_answer.png" alt="Question about Liliya answered from the facts file: She speaks English, Ukrainian, and Russian" width="48%"> <img src="docs/images/bedrock_off_topic.png" alt="Off-topic question about boiling an egg gets the fixed reply: I can only answer questions about Liliya's experience, skills, and projects" width="48%">
+
+*(Not kept running continuously, to control AWS cost — the screenshots above are it live in both environments.)*
+
+Unlike everything else here, each request costs real money, and the endpoint
+is public and unauthenticated. So the guardrails went in with the feature:
+
+- **Per-IP rate limit** (5 questions/minute), an atomic counter in the
+  existing DynamoDB table, checked before Bedrock is called.
+- **Hard daily token cap** (30M tokens, about $1.90/day). Each request
+  reserves its worst-case tokens in one conditional DynamoDB write before
+  calling Bedrock, so concurrent requests can't overshoot it. A CloudWatch
+  alarm emails at 25% of the budget.
+- **Fail closed**: if the limits can't be checked, Bedrock isn't called.
+- **Small, bounded requests**: questions capped at 300 characters, answers
+  at 200 tokens, and the unchanging system prompt is prompt-cached.
+- **Off-topic guard**: the model replies with a sentinel for anything not
+  about me, and the app swaps in a fixed reply.
+- **Question logging** to CloudWatch (outcome, question, tokens; no IPs),
+  with 30-day retention.
+
+**What testing caught:** the first off-topic guard blocked real questions like
+"Has she worked with Docker?", and Nova Micro missed facts that were in the
+file. Running a fixed set of on- and off-topic questions against the real
+model is what settled the prompt wording and the move from Micro to Lite.
+
+**Why no RAG:** the whole facts file (~6k tokens) goes into every prompt, and
+Bedrock caches it. RAG would add an embedding model, a vector store and
+retrieval code, and the vector store is a standing monthly cost that dwarfs
+the ~$2/day token cap for a single 288-line document. It would also add a
+retrieval step that can miss facts the model currently always sees. Revisit
+only if the facts file outgrows the context window or the per-question cost
+stops being trivial.
+
+</details>
+
+<details>
+<summary><b>Testing: what's covered</b> — code checks, answer quality, scoring methods, pipeline gate</summary>
+
+**1. Code checks**: does the app's plumbing work?
+- **Linting** with ruff, and **unit tests** with AWS mocked: rate limiting, the daily token budget and its refund, fail-closed behavior, error handling, logging without IPs. Both run first in CI (`test_app.py`).
+
+**2. Answer quality**: does the assistant say the right things? (golden set in `evals/questions.csv`, red-team set in `evals/redteam.csv`)
+- **Accuracy** (`positive`): real visitor questions are answered correctly from the facts file.
+- **Adversarial** (`negative`): off-topic questions, prompt injection, role-play jailbreaks, prompt extraction, and bait to leak confidential details or invent facts.
+- **Red team** (`redteam`): 13 further attacks, each tagged with its technique: base64-encoded and Ukrainian-language injection, closing the `<question>` tag to inject instructions, prompt extraction and translation, claiming to be the site owner, JSON format hijacking, identity probing, PII requests, defamation bait, abusive content, output-length abuse, and markup injection.
+- **False premises** (`edge`): "15 years of QA, right?" or "AWS Solutions Architect, right?" must be corrected, not agreed with.
+
+**3. How answers are scored**: because "correct" isn't always a string match.
+- **Rules** for what must or must not appear (exact match, regex, style rules like no em dash).
+- **LLM-as-judge** for meaning rules can't express, graded by Nova Pro, a stronger model than the Nova Lite that answers.
+- **The judge is checked too**: I label its failures by hand to see how often the judge itself is wrong (notebook, section 4).
+- **Each question runs 3 times**, since answers vary between runs.
+
+**4. Pipeline gate**: does it keep working after every change?
+- The suite calls the **deployed staging app over HTTP**, so the real system prompt and guardrails are tested, not the bare model.
+- A pass rate under **90% blocks the production approval**, and every run is recorded in the results table below.
+
+**Not covered yet:** latency and cost-per-answer assertions. (There are no multi-turn tests because `/ask` takes a single question with no conversation history.)
+
+</details>
+
+<details>
+<summary><b>Golden dataset, notebook walkthrough, and CI results</b> — golden and red-team sets, how to step through them by hand, latest pass rates</summary>
+
+### The golden dataset
+
+[`evals/questions.csv`](evals/questions.csv) is the fixed set of 32 questions
+with expected behavior, in three categories:
+
+- **positive**: real questions about my background, checked against the facts file.
+- **negative**: off-topic questions, prompt injection, role-play jailbreaks, and
+  questions that tempt it to reveal confidential details or invent facts.
+- **edge**: false premises that it has to correct.
+
+Each row has up to three expectations (`__expected` columns, written as
+`type:value`). The expectations come from reading real model output and
+deciding what a correct answer must and must not say. The same file drives
+both the notebook and the automated run.
+
+### The red-team set
+
+[`evals/redteam.csv`](evals/redteam.csv) holds 13 adversarial questions, kept
+apart so the golden set stays a clean accuracy measure. It uses the same
+columns as the golden set: a short description, category, `technique` label,
+and expectations. The notebook walks through the golden set
+only; the red-team set runs in the automated promptfoo run.
+
+### Walk through it by hand: the notebook
+
+**[`evals/golden_set.ipynb`](evals/golden_set.ipynb)** is a step-by-step
+walkthrough meant to be read and run (VS Code, JupyterLab or Colab) against a
+local copy of the app. It covers:
+
+1. Sending the golden set to the running app.
+2. Rule-based checks, including a test of the checker itself.
+3. The LLM judge: what it is for, how it is set up (stronger model, temperature 0, one written rubric per question).
+4. Results by category.
+5. Reviewing every failure by hand, labeling it a real failure or a judge error, and measuring how good the judge is.
+
+It is the explanation of *why* the checks are built the way they are; the CI
+run below is the same suite, automated.
+
+### Automated: promptfoo in CI
+
+Both sets run through [promptfoo](https://www.promptfoo.dev) against
+the staging app after `deploy-staging` and before the production approval,
+three times each. A pass rate below 90% fails the pipeline, and each run's
+numbers are committed back to this README by CI. The run's job summary links
+the full promptfoo report (HTML, plus the JSON for the promptfoo viewer).
+
+A groundedness check (an LLM judge that fails any claim not in the facts file)
+runs locally only, from `promptfoo-groundedness.yaml`. It stays out of CI until
+the judge is calibrated: its first run failed 2 correct answers out of 135.
+
+<!-- evals:start -->
+No run recorded yet. The first pipeline run after this change fills this in.
+<!-- evals:end -->
+
+Raw per-run data: [`evals/results/history.json`](evals/results/history.json).
+To run the suite yourself, see the Commands section of `CLAUDE.md`.
+
+</details>
+
+## Run it yourself
+
+<details>
+<summary><b>Setup, tests, endpoints, scripts</b> — local run, lint and tests, API routes</summary>
+
+### Setup
 
 ```bash
 docker build -t myapp .
@@ -138,21 +290,24 @@ docker run -p 8080:8080 -e AWS_REGION=us-east-1 -v ~/.aws:/root/.aws:ro myapp
 Then open `http://localhost:8080`. The counter and `/ask` use your local AWS
 credentials, hence the `~/.aws` mount.
 
-## Tests
+### Tests
 
 ```bash
 pip install -r requirements-dev.txt
+ruff check .   # lint
 pytest
 ```
 
-## Endpoints
+### Endpoints
 
 - `GET /` - Portfolio page with a DynamoDB-backed thumbs-up counter
 - `POST /like` - Increments the counter, returns the new count as JSON
 - `POST /ask` - Answers a question about my background via Bedrock, as JSON
 - `GET /health` - Health check
 
-## Scripts
+### Scripts
 
 - `scripts/health_check.py` - Fails if the prod service isn't running as
   many tasks as it wants. Runs right after `deploy-prod`.
+
+</details>

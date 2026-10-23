@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt pytest
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
       - run: pytest
 
   build-push:
@@ -43,6 +44,8 @@ jobs:
   deploy-staging:
     needs: build-push
     runs-on: ubuntu-latest
+    outputs:
+      staging_url: ${{ steps.staging-ip.outputs.url }}
     steps:
       - uses: actions/checkout@v7
       - uses: aws-actions/configure-aws-credentials@v6
@@ -63,6 +66,7 @@ jobs:
           environment-variables: |
             APP_VERSION=${{ github.sha }}
             APP_ENV=staging
+            ASK_LIMIT_PER_WINDOW=1000
       - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render.outputs.task-definition }}
@@ -71,17 +75,89 @@ jobs:
           desired-count: 1
           wait-for-service-stability: true
       - name: Look up staging task's public IP and print a link
+        id: staging-ip
         run: |
           TASK_ARN=$(aws ecs list-tasks --cluster "${{ env.ECS_CLUSTER }}" --service-name "${{ secrets.ECS_SERVICE_STAGING }}" --desired-status RUNNING --query 'taskArns[0]' --output text)
           ENI_ID=$(aws ecs describe-tasks --cluster "${{ env.ECS_CLUSTER }}" --tasks "$TASK_ARN" --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value | [0]' --output text)
           PUBLIC_IP=$(aws ec2 describe-network-interfaces --network-interface-ids "$ENI_ID" --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
 
+          echo "url=http://$PUBLIC_IP:8080" >> "$GITHUB_OUTPUT"
+
           echo "### 🚀 Staging deployed" >> "$GITHUB_STEP_SUMMARY"
           echo "[http://$PUBLIC_IP:8080](http://$PUBLIC_IP:8080)" >> "$GITHUB_STEP_SUMMARY"
           echo "Review this before approving the production deployment below." >> "$GITHUB_STEP_SUMMARY"
 
-  deploy-prod:
+  eval-staging:
     needs: deploy-staging
+    runs-on: ubuntu-latest
+    # One run at a time, so two quick pushes can't race to commit results.
+    concurrency: eval-results
+    permissions:
+      id-token: write
+      contents: write
+    env:
+      ASK_URL: ${{ needs.deploy-staging.outputs.staging_url }}/ask
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      # Nova Pro grading needs the extra packages; concurrency 1 because Nova Pro throttles above that.
+      - name: Run LLM evals against staging
+        id: eval
+        continue-on-error: true
+        env:
+          PROMPTFOO_PASS_RATE_THRESHOLD: "90"
+          PROMPTFOO_DISABLE_TELEMETRY: "1"
+        run: |
+          npx -y -p promptfoo@0.124.1 -p @aws-sdk/client-bedrock-runtime -p @smithy/node-http-handler \
+            promptfoo eval --no-cache --repeat 3 --max-concurrency 1 --output promptfoo-output.json promptfoo-report.html
+      # Unzipped (archive: false), so the summary links straight to the file instead of a zip.
+      - name: Upload HTML report
+        id: upload-html
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          path: promptfoo-report.html
+          archive: false
+          overwrite: true  # so re-running the job doesn't fail on the existing artifact
+      - name: Upload JSON results
+        id: upload-json
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          path: promptfoo-output.json
+          archive: false
+          overwrite: true
+      - name: Link the report in the job summary
+        if: always()
+        run: |
+          {
+            echo "### 🧪 LLM eval results"
+            python3 -c "import json; s = json.load(open('promptfoo-output.json'))['results']['stats']; print(f\"{s['successes']} passed, {s['failures']} failed, {s.get('errors', 0)} errors\")" || echo "No results file (eval did not finish)."
+            echo ""
+            echo "- [HTML report](${{ steps.upload-html.outputs.artifact-url }}): download and open in a browser"
+            echo "- [JSON results](${{ steps.upload-json.outputs.artifact-url }}): for the full promptfoo viewer, run \`npx promptfoo@0.124.1 import promptfoo-output.json && npx promptfoo@0.124.1 view\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Record results in README
+        run: python3 scripts/eval_report.py promptfoo-output.json --sha "${{ github.sha }}"
+      - name: Commit results to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md evals/results/history.json
+          git commit -m "Update eval results for ${GITHUB_SHA::7} [skip ci]"
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
+      # The results are committed either way; this is what blocks the production approval.
+      - name: Fail if the pass rate is below the threshold
+        if: steps.eval.outcome == 'failure'
+        run: exit 1
+
+  deploy-prod:
+    needs: [deploy-staging, eval-staging]
     runs-on: ubuntu-latest
     environment: production
     steps:

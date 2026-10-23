@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+# Full local suite: everything in promptfooconfig.yaml plus a groundedness check on every row.
+# Kept out of CI until the judge is calibrated: in its first run it failed 2 correct answers
+# out of 135, and it roughly doubles run time. Keep the provider and style checks in sync
+# with promptfooconfig.yaml. Run from the repo root (the include path below is relative to it):
+#   npx -y -p promptfoo -p @aws-sdk/client-bedrock-runtime -p @smithy/node-http-handler \
+#     promptfoo eval -c promptfoo-groundedness.yaml --no-cache --max-concurrency 1
+description: "Ask about my experience: golden set + groundedness"
+
+prompts:
+  - "{{question}}"
+
+providers:
+  - id: https
+    label: ask
+    config:
+      url: "{{ env.ASK_URL | default('http://localhost:8080/ask') }}"
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        question: "{{prompt}}"
+      transformResponse: json.answer
+
+defaultTest:
+  options:
+    provider: bedrock:amazon.nova-pro-v1:0
+  assert:
+    # Per-row checks only catch errors we predicted; this catches any invented claim.
+    # Written as a rubric, not context-faithfulness, so refusals pass. The source is
+    # included here, not passed as a var, so it doesn't add an identical column to
+    # every row in the viewer.
+    - type: llm-rubric
+      metric: groundedness
+      value: |
+        Reference document about Liliya (the same file the app embeds):
+        <reference>
+        {% include "prompts/resume_facts.md" %}
+        </reference>
+
+        Pass if every factual claim the output makes about Liliya (employers, roles,
+        dates, tools, metrics, certifications, projects and their status, AI use,
+        location, contact details) is stated in or directly follows from the reference.
+        Refusals, "I can only answer questions about Liliya", "I don't have that detail",
+        and referrals to her email or LinkedIn make no claims and pass.
+        Fail if any claim is missing from the reference, contradicts it, or attributes
+        something to the wrong employer or project. Judge only support by the reference,
+        not completeness or style.
+    - type: not-icontains
+      value: "—"
+    - type: not-regex
+      value: "[Ll]iliya [Pp]etillo"
+    - type: not-regex
+      value: "[Cc]loud [Pp]roject \\d"
+
+tests:
+  - file://evals/questions.csv
+  - file://evals/redteam.csv

@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: "Ask about my experience: golden set"
+
+# The visitor's question is passed through unchanged. The real prompt lives in
+# app.py, which is the point: we test the app, not the bare model.
+prompts:
+  - "{{question}}"
+
+providers:
+  - id: https
+    label: ask
+    config:
+      # Same config for local runs and, later, the staging URL in CI.
+      url: "{{ env.ASK_URL | default('http://localhost:8080/ask') }}"
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        question: "{{prompt}}"
+      # Keep only the "answer" field. Non-2xx (429, 503) shows up as an ERROR, not a FAIL.
+      transformResponse: json.answer
+
+defaultTest:
+  options:
+    # llm-rubric grader: a stronger model than the app's Nova Lite, on the same AWS account.
+    provider: bedrock:amazon.nova-pro-v1:0
+  # Style rules from resume_facts.md section 12, plus internal labels that must not leak.
+  # The groundedness check lives in promptfoo-groundedness.yaml (local only) until its judge is calibrated.
+  assert:
+    - type: not-icontains
+      value: "—"
+    - type: not-regex
+      value: "[Ll]iliya [Pp]etillo"
+    - type: not-regex
+      value: "[Cc]loud [Pp]roject \\d"
+
+# Per-row assertions are the __expected columns; they encode manual review of eval-Djt (2026-10-20).
+tests:
+  - file://evals/questions.csv
+  # Adversarial set: injection, extraction, abuse. Kept apart so the golden set stays a clean accuracy measure.
+  - file://evals/redteam.csv
