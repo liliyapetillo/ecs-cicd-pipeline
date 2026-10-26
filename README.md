@@ -285,6 +285,15 @@ from the prompt, the suite still scored 96%, since only one question tested it.
 Adding a question for each kind of off-topic request and gating each category
 closed that hole.
 
+To prove it, I pushed a commit that deleted the off-topic rule
+([`e715c31`](https://github.com/liliyapetillo/ecs-cicd-pipeline/commit/e715c31)).
+Staging got the broken app, the eval job failed, and production was never
+offered for approval; the next commit reverted it.
+
+![GitHub Actions run for the deliberately broken commit: test, build-push and deploy-staging passed, eval-staging failed with 136 passed and 20 failed, and deploy-prod was skipped](docs/images/eval_gate_blocked.png)
+
+<img src="docs/images/eval_gate_log.png" alt="The failed gate step's log: Overall pass rate is below 90%, Category negative below 90%: 29/45 (64%)" width="70%">
+
 CI runs the full suite (52 questions, 156 answers, about 5 minutes) rather than
 a smaller core subset. It costs well under a dollar per run in Bedrock calls and stays
 well under the app's daily token budget, and a subset would have even fewer
