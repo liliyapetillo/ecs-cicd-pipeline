@@ -29,7 +29,7 @@ def is_infra_error(result):
     return any(not c.get("pass") and GRADER_ERROR.search(c.get("reason") or "") for c in components)
 
 
-def summarize(output, sha, run_url=None):
+def summarize(output, sha, run_url=None, report_url=None):
     """Reduce a promptfoo output file to the numbers worth keeping."""
     results = output["results"]["results"]
     by_category = defaultdict(lambda: {"passed": 0, "total": 0, "errors": 0})
@@ -52,6 +52,7 @@ def summarize(output, sha, run_url=None):
         "date": timestamp[:10],
         "sha": sha[:7],
         "run_url": run_url,
+        "report_url": report_url,
         "total": len(results),
         "graded": len(results) - errors,
         "passed": passed,
@@ -92,6 +93,16 @@ def commit_link(run):
     return f"[{sha}]({run['run_url']})" if run.get("run_url") else sha
 
 
+def report_links(run):
+    """Links to the run's HTML report and CI logs, whichever exist."""
+    links = []
+    if run.get("report_url"):
+        links.append(f"[HTML report]({run['report_url']})")
+    if run.get("run_url"):
+        links.append(f"[run logs]({run['run_url']})")
+    return "".join(f" · {link}" for link in links)
+
+
 def score_line(run):
     if not graded(run):
         return f"**Not graded**: all {run['total']} results hit infrastructure errors (grader or network)."
@@ -120,11 +131,10 @@ def trend_chart(runs):
 
 def render(runs):
     latest = runs[-1]
-    report = f" · [full report and logs]({latest['run_url']})" if latest.get("run_url") else ""
     lines = [
         "> [!NOTE]",
         f"> **Auto-updated by CI on every deploy.** Latest run: commit `{latest['sha']}` on "
-        f"{latest['date']}, against staging{report}",
+        f"{latest['date']}, against staging{report_links(latest)}",
         "",
         score_line(latest),
         "",
@@ -158,7 +168,7 @@ def render(runs):
 
 def headline(runs):
     latest = runs[-1]
-    report = f" · [report]({latest['run_url']})" if latest.get("run_url") else ""
+    report = report_links(latest)
     if not graded(latest):
         return (f"**Latest eval run (commit `{latest['sha']}`, {latest['date']}) was not graded**: "
                 f"infrastructure errors{report}.")
@@ -194,12 +204,14 @@ def main():
     parser.add_argument("output", type=Path, help="promptfoo --output JSON file")
     parser.add_argument("--sha", required=True)
     parser.add_argument("--run-url", help="link to the CI run that holds the full report")
+    parser.add_argument("--report-url", help="link to the uploaded HTML report artifact")
     parser.add_argument("--history", type=Path, default=Path("evals/results/history.json"))
     parser.add_argument("--badge", type=Path, default=Path("evals/results/badge.json"))
     parser.add_argument("--readme", type=Path, default=Path("README.md"))
     args = parser.parse_args()
 
-    run = summarize(json.loads(args.output.read_text()), args.sha, args.run_url)
+    run = summarize(json.loads(args.output.read_text()), args.sha, args.run_url,
+                    args.report_url or None)
     runs = update_history(args.history, run)
     args.badge.write_text(json.dumps(badge(runs)) + "\n")
     args.readme.write_text(update_readme(args.readme.read_text(), runs))

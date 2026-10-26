@@ -145,7 +145,8 @@ jobs:
       - name: Record results in README
         run: |
           python3 scripts/eval_report.py promptfoo-output.json --sha "${{ github.sha }}" \
-            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --report-url "${{ steps.upload-html.outputs.artifact-url }}"
       - name: Commit results to main
         run: |
           git config user.name "github-actions[bot]"

@@ -267,8 +267,9 @@ commits the results back to this repo: the scorecard, trend chart and history
 below, the **LLM evals** badge at the top of this README, and
 [`evals/results/history.json`](evals/results/history.json). Grader or network
 failures are reported as "not graded" instead of counting against the model.
-The run's job summary links the full promptfoo report (HTML, plus the JSON for
-the promptfoo viewer).
+The scorecard and the run's job summary link the full promptfoo report (HTML;
+downloading it needs a GitHub login, and it expires after the repo's artifact
+retention period). The job summary also links the JSON for the promptfoo viewer.
 
 A groundedness check (an LLM judge that fails any claim not in the facts file)
 runs locally only, from `promptfoo-groundedness.yaml`. It stays out of CI until

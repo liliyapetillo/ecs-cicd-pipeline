@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent / "scripts"))
 import eval_report  # noqa: E402
 
 RUN_URL = "https://github.com/o/r/actions/runs/1"
+REPORT_URL = "https://github.com/o/r/actions/runs/1/artifacts/2"
 
 
 def result(category, question, success, reason=None, failure_reason=None):
@@ -40,8 +41,9 @@ def output():
 
 
 def test_summarize_counts_by_category_and_lists_failures(output):
-    run = eval_report.summarize(output, "abcdef1234567", RUN_URL)
+    run = eval_report.summarize(output, "abcdef1234567", RUN_URL, REPORT_URL)
     assert run["sha"] == "abcdef1"
+    assert run["report_url"] == REPORT_URL
     assert run["date"] == "2026-10-23"
     assert run["run_url"] == RUN_URL
     assert run["categories"]["negative"] == {"passed": 1, "total": 2, "errors": 0}
@@ -68,9 +70,11 @@ def test_update_history_keeps_only_the_latest_runs(tmp_path, output):
 
 
 def test_render_shows_scorecard_failures_chart_and_history(output):
-    run = eval_report.summarize(output, "abcdef1", RUN_URL)
+    run = eval_report.summarize(output, "abcdef1", RUN_URL, REPORT_URL)
     text = eval_report.render([run])
-    assert "> [!NOTE]" in text and f"[full report and logs]({RUN_URL})" in text
+    assert "> [!NOTE]" in text
+    assert f" · [HTML report]({REPORT_URL}) · [run logs]({RUN_URL})" in text
+    assert f"[HTML report]({REPORT_URL})" in eval_report.headline([run])
     assert "**67% passing** (4/6 graded), 2 not graded: infrastructure errors" in text
     assert "| negative | 🔴 | 1/2 | 50% |" in text
     assert "| positive | 🟢 | 2/2 | 100% |" in text
@@ -78,6 +82,11 @@ def test_render_shows_scorecard_failures_chart_and_history(output):
     assert "- (edge, 1x) Q4" in text
     assert "```mermaid" in text and "line [66.7]" in text
     assert f"| 2026-10-23 | [`abcdef1`]({RUN_URL}) | 4/6 | 67% | 2 |" in text
+
+
+def test_render_skips_report_links_that_are_missing(output):
+    run = eval_report.summarize(output, "abcdef1")
+    assert "HTML report" not in eval_report.render([run]) and "run logs" not in eval_report.headline([run])
 
 
 def test_render_handles_a_run_with_nothing_graded():
