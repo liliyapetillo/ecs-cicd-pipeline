@@ -144,7 +144,7 @@ What a real production service would still need:
 ## AI
 
 <!-- evals-headline:start -->
-🟢 **LLM evals: 99% passing** (134/135) on commit `c3fa7a6`, 2026-10-23 · [report](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843)
+🟢 **LLM evals: 99% passing** (134/135) on commit `553f356`, 2026-10-26 · [HTML report](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40340683995/artifacts/12660600504) · [run logs](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40340683995)
 <!-- evals-headline:end -->
 
 <details>
@@ -277,7 +277,7 @@ the judge is calibrated: its first run failed 2 correct answers out of 135.
 
 <!-- evals:start -->
 > [!NOTE]
-> **Auto-updated by CI on every deploy.** Latest run: commit `c3fa7a6` on 2026-10-23, against staging · [full report and logs](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843)
+> **Auto-updated by CI on every deploy.** Latest run: commit `553f356` on 2026-10-26, against staging · [HTML report](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40340683995/artifacts/12660600504) · [run logs](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40340683995)
 
 **99% passing** (134/135 graded).
 
@@ -297,10 +297,10 @@ the judge is calibrated: its first run failed 2 correct answers out of 135.
 
 ```mermaid
 xychart-beta
-    title "Pass rate, last 1 graded run"
-    x-axis ["10-23 c3fa7a6"]
+    title "Pass rate, last 2 graded runs"
+    x-axis ["10-23 c3fa7a6", "10-26 553f356"]
     y-axis "Pass rate (%)" 0 --> 100
-    line [99.3]
+    line [99.3, 99.3]
 ```
 
 <details>
@@ -308,6 +308,7 @@ xychart-beta
 
 | Date | Commit | Passed | Rate | Not graded |
 |---|---|---|---|---|
+| 2026-10-26 | [`553f356`](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40340683995) | 134/135 | 99% | 0 |
 | 2026-10-23 | [`c3fa7a6`](https://github.com/liliyapetillo/ecs-cicd-pipeline/actions/runs/40033541843) | 134/135 | 99% | 0 |
 
 </details>
