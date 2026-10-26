@@ -8,3 +8,4 @@ __pycache__/
 promptfoo-output.json
 promptfoo-report.html
 .promptfoo/
+redteam-generated.yaml

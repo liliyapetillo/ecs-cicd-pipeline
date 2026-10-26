@@ -200,7 +200,7 @@ stops being trivial.
 **2. Answer quality**: does the assistant say the right things? (golden set in `evals/questions.csv`, red-team set in `evals/redteam.csv`)
 - **Accuracy** (`positive`): real visitor questions are answered correctly from the facts file.
 - **Adversarial** (`negative`): off-topic questions, prompt injection, role-play jailbreaks, prompt extraction, and bait to leak confidential details or invent facts.
-- **Red team** (`redteam`): 13 further attacks, each tagged with its technique: base64-encoded and Ukrainian-language injection, closing the `<question>` tag to inject instructions, prompt extraction and translation, claiming to be the site owner, JSON format hijacking, identity probing, PII requests, defamation bait, abusive content, output-length abuse, and markup injection.
+- **Red team** (`redteam`): 16 further attacks, each tagged with its technique: base64-encoded and Ukrainian-language injection, closing the `<question>` tag to inject instructions, prompt extraction and translation, claiming to be the site owner, JSON format hijacking, identity probing, PII requests, defamation bait, abusive content, output-length abuse, markup injection, and three false-premise and PII questions found by a generated red-team pass.
 - **False premises** (`edge`): "15 years of QA, right?" or "AWS Solutions Architect, right?" must be corrected, not agreed with.
 
 **3. How answers are scored**: because "correct" isn't always a string match.
@@ -235,13 +235,29 @@ Each row has up to three expectations (`__expected` columns, written as
 deciding what a correct answer must and must not say. The same file drives
 both the notebook and the automated run.
 
+[`evals/ERROR_ANALYSIS.md`](evals/ERROR_ANALYSIS.md) records that review: my
+hand-written notes on the first answers, then 135 failures across 39 local runs
+sorted by cause. About half were the model's fault. Most of the rest were bugs
+in the checks or the judge.
+
 ### The red-team set
 
-[`evals/redteam.csv`](evals/redteam.csv) holds 13 adversarial questions, kept
+[`evals/redteam.csv`](evals/redteam.csv) holds 16 adversarial questions, kept
 apart so the golden set stays a clean accuracy measure. It uses the same
 columns as the golden set: a short description, category, `technique` label,
 and expectations. The notebook walks through the golden set
 only; the red-team set runs in the automated promptfoo run.
+
+13 of them I wrote by hand. The other 3 came from a generated pass
+([`promptfoo-redteam.yaml`](promptfoo-redteam.yaml), run locally): promptfoo
+wrote 32 attacks with Nova Pro, and I triaged every answer myself instead of
+trusting the grader. The app's 300-character limit rejected all 16 long
+jailbreak templates before they reached the model. The grader failed one
+correct answer (it didn't know her email is meant to be public) and passed three
+wrong ones: an answer that agreed her portfolio projects were done "at her
+previous company", one that went along with a made-up job at Microsoft, and one
+that called her cloud experience "extensive". Those three became regression rows
+and prompt fixes; details in [`evals/ERROR_ANALYSIS.md`](evals/ERROR_ANALYSIS.md).
 
 ### Walk through it by hand: the notebook
 

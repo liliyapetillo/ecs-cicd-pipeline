@@ -24,6 +24,10 @@ docker run -p 8080:8080 -e AWS_REGION=us-east-1 -v ~/.aws:/root/.aws:ro myapp
 npx -y -p promptfoo -p @aws-sdk/client-bedrock-runtime -p @smithy/node-http-handler promptfoo eval --no-cache --repeat 3 --max-concurrency 1
 # Full local suite: the same checks plus a groundedness judge on every row (not in CI until calibrated; ~2x slower)
 npx -y -p promptfoo -p @aws-sdk/client-bedrock-runtime -p @smithy/node-http-handler promptfoo eval -c promptfoo-groundedness.yaml --no-cache --max-concurrency 1
+# Generated red team (local only): generate attacks with Nova Pro, then run them with plain `eval`.
+# `promptfoo redteam eval` (and `eval` on a file that still has the `redteam:` key) stops at an
+# interactive email prompt, so delete that key from the generated file first.
+PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION=true npx -y -p promptfoo -p @aws-sdk/client-bedrock-runtime -p @smithy/node-http-handler promptfoo redteam generate -c promptfoo-redteam.yaml -o redteam-generated.yaml
 ```
 
 `evals/golden_set.ipynb` runs the same questions by hand (VS Code or JupyterLab) against the local app.
