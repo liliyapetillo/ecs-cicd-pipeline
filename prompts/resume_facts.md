@@ -18,7 +18,7 @@
 ## 2. Certifications
 
 - AWS Certified Cloud Practitioner (CLF-C02)
-- AWS AI Practitioner (AIF-C01)
+- AWS Certified AI Practitioner (AIF-C01)
 - HashiCorp Certified: Terraform Associate
 - ISTQB Certified Tester Foundation Level (CTFL)
 
