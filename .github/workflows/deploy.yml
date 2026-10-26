@@ -157,9 +157,17 @@ jobs:
           git rebase origin/main
           git push origin HEAD:main
       # The results are committed either way; this is what blocks the production approval.
+      # Each category must clear the bar too, so one broken behavior (say, the off-topic
+      # rule) can't hide behind a high overall rate.
       - name: Fail if the pass rate is below the threshold
-        if: steps.eval.outcome == 'failure'
-        run: exit 1
+        run: |
+          status=0
+          if [ "${{ steps.eval.outcome }}" = "failure" ]; then
+            echo "Overall pass rate is below 90%"
+            status=1
+          fi
+          python3 scripts/eval_report.py promptfoo-output.json --check-categories 90 || status=1
+          exit $status
 
   deploy-prod:
     needs: [deploy-staging, eval-staging]

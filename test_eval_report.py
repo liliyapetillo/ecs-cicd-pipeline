@@ -114,6 +114,23 @@ def test_badge_color_follows_pass_rate(passed, color):
     assert data["color"] == color and data["message"] == f"{round(100 * passed / 20)}% passing"
 
 
+def test_weak_categories_flags_only_those_below_the_threshold(output):
+    run = eval_report.summarize(output, "abcdef1")
+    # positive 2/2, negative 1/2, edge 1/2; redteam has nothing graded, so it's skipped.
+    assert set(eval_report.weak_categories(run, 90)) == {"negative", "edge"}
+    assert eval_report.weak_categories(run, 50) == {}
+
+
+def test_check_categories_exit_code(tmp_path, output, monkeypatch, capsys):
+    path = tmp_path / "out.json"
+    path.write_text(json.dumps(output))
+    monkeypatch.setattr(sys, "argv", ["eval_report.py", str(path), "--check-categories", "90"])
+    assert eval_report.main() == 1
+    assert "Category negative below 90%: 1/2 (50%)" in capsys.readouterr().out
+    monkeypatch.setattr(sys, "argv", ["eval_report.py", str(path), "--check-categories", "50"])
+    assert eval_report.main() == 0
+
+
 def test_update_readme_replaces_the_marked_blocks_only(output):
     runs = [eval_report.summarize(output, "abcdef1")]
     readme = (

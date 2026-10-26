@@ -211,7 +211,7 @@ stops being trivial.
 
 **4. Pipeline gate**: does it keep working after every change?
 - The suite calls the **deployed staging app over HTTP**, so the real system prompt and guardrails are tested, not the bare model.
-- A pass rate under **90% blocks the production approval**, and every run is recorded in the results table below.
+- A pass rate under **90%, overall or in any one category, blocks the production approval**, and every run is recorded in the results table below.
 
 **Not covered yet:** latency and cost-per-answer assertions. (There are no multi-turn tests because `/ask` takes a single question with no conversation history.)
 
@@ -222,7 +222,7 @@ stops being trivial.
 
 ### The golden dataset
 
-[`evals/questions.csv`](evals/questions.csv) is the fixed set of 32 questions
+[`evals/questions.csv`](evals/questions.csv) is the fixed set of 36 questions
 with expected behavior, in three categories:
 
 - **positive**: real questions about my background, checked against the facts file.
@@ -278,7 +278,19 @@ run below is the same suite, automated.
 
 Both sets run through [promptfoo](https://www.promptfoo.dev) against
 the staging app after `deploy-staging` and before the production approval,
-three times each. A pass rate below 90% fails the pipeline. After every run, CI
+three times each. A pass rate below 90% fails the pipeline, overall or in any
+one category (positive, negative, edge, redteam). The per-category rule exists
+because the overall one missed a real break: with the off-topic rule deleted
+from the prompt, the suite still scored 96%, since only one question tested it.
+Adding a question for each kind of off-topic request and gating each category
+closed that hole.
+
+CI runs the full suite (52 questions, 156 answers, about 5 minutes) rather than
+a smaller core subset. It costs well under a dollar per run in Bedrock calls and stays
+well under the app's daily token budget, and a subset would have even fewer
+questions per behavior, which is exactly the gap described above.
+
+After every run, CI
 commits the results back to this repo: the scorecard, trend chart and history
 below, the **LLM evals** badge at the top of this README, and
 [`evals/results/history.json`](evals/results/history.json). Grader or network

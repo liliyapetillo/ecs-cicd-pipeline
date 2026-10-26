@@ -187,6 +187,16 @@ def badge(runs):
             "color": color}
 
 
+def weak_categories(run, threshold):
+    """Categories whose graded pass rate is below threshold (a percentage).
+
+    The overall gate alone can miss a broken behavior: a few failing rows barely
+    move the rate of the whole suite, so each category has to clear it too.
+    """
+    return {name: c for name, c in run["categories"].items()
+            if c["total"] and 100 * c["passed"] / c["total"] < threshold}
+
+
 def replace_between(text, start, end, block):
     pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
     if not pattern.search(text):
@@ -202,13 +212,24 @@ def update_readme(readme_text, runs):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path, help="promptfoo --output JSON file")
-    parser.add_argument("--sha", required=True)
+    parser.add_argument("--sha", help="commit the run belongs to (required unless --check-categories)")
+    parser.add_argument("--check-categories", type=float, metavar="PCT",
+                        help="only check that every category passes at least PCT%%; exit 1 if not")
     parser.add_argument("--run-url", help="link to the CI run that holds the full report")
     parser.add_argument("--report-url", help="link to the uploaded HTML report artifact")
     parser.add_argument("--history", type=Path, default=Path("evals/results/history.json"))
     parser.add_argument("--badge", type=Path, default=Path("evals/results/badge.json"))
     parser.add_argument("--readme", type=Path, default=Path("README.md"))
     args = parser.parse_args()
+
+    if args.check_categories is not None:
+        weak = weak_categories(summarize(json.loads(args.output.read_text()), "check"), args.check_categories)
+        for name, c in weak.items():
+            print(f"Category {name} below {args.check_categories:g}%: {c['passed']}/{c['total']} "
+                  f"({pct(c['passed'], c['total'])})")
+        return 1 if weak else 0
+    if not args.sha:
+        parser.error("--sha is required")
 
     run = summarize(json.loads(args.output.read_text()), args.sha, args.run_url,
                     args.report_url or None)
